@@ -1,5 +1,5 @@
 'use client';
-
+import OpticalMonitor from '../components/OpticalMonitor';
 import { useState, useEffect, useRef } from 'react';
 import { Play, Square, RotateCcw, Settings, Mic, MicOff, Save, Database, TrendingUp } from 'lucide-react';
 import SettingsPanel from '../components/SettingsPanel';
@@ -36,8 +36,16 @@ export default function RoulettePredictorApp() {
   const [settings, setSettings] = useState({
     wheelSpeed: 30, // RPM
     totalTime: 3, // seconds (reduced from 6)
-    wheelRadius: 27, // cm
+    wheelRadius: 40, // cm
     dropThreshold: 0.5 // rev/sec
+  });
+  const [opticalMode, setOpticalMode] = useState(false);
+  const [opticalCalibrationData, setOpticalCalibrationData] = useState(null);
+  const [opticalRevolutions, setOpticalRevolutions] = useState([]);
+  const [ballTrackingStatus, setBallTrackingStatus] = useState({
+    ballDetected: false,
+    confidence: 0,
+    currentPosition: null
   });
 
   // Refs
@@ -196,10 +204,25 @@ export default function RoulettePredictorApp() {
   };
 
   const startTracking = () => {
-    setGameState('collecting');
-    setRevolutions([]);
-    setTimeRemaining(settings.totalTime);
-    startTimeRef.current = Date.now();
+    if (opticalMode) {
+      // In optical mode, ball tracking is handled automatically
+      setGameState('collecting');
+      setRevolutions([]);
+      setOpticalRevolutions([]);
+      setTimeRemaining(settings.totalTime);
+      startTimeRef.current = Date.now();
+      
+      console.log('🤖 Starting optical tracking mode');
+      
+      // The optical system will automatically detect revolutions
+      // No manual clicking needed
+    } else {
+      // Original manual mode
+      setGameState('collecting');
+      setRevolutions([]);
+      setTimeRemaining(settings.totalTime);
+      startTimeRef.current = Date.now();
+    }
   };
 
   const recordRevolution = () => {
@@ -226,21 +249,32 @@ export default function RoulettePredictorApp() {
     }
     
     setGameState('calculating');
-    calculatePrediction();
+    
+    // Use optical revolutions if in optical mode and available
+    const revolutionsToUse = opticalMode && opticalRevolutions.length > 0 ? 
+      opticalRevolutions : revolutions;
+    
+    console.log(`🧮 Calculating with ${revolutionsToUse.length} revolutions from ${opticalMode ? 'optical' : 'manual'} tracking`);
+    
+    calculatePrediction(revolutionsToUse);
   };
 
-  const calculatePrediction = async () => {
+  const calculatePrediction = async (revolutionsData = revolutions) => {
     // Console log physics settings being applied
     console.log('🔧 PHYSICS SETTINGS APPLIED:', {
       wheelSpeed: settings.wheelSpeed + ' RPM',
       totalTime: settings.totalTime + ' seconds',
       wheelRadius: settings.wheelRadius + ' cm',
-      dropThreshold: settings.dropThreshold + ' rev/sec'
+      dropThreshold: settings.dropThreshold + ' rev/sec',
+      trackingMode: opticalMode ? 'Optical' : 'Manual'
     });
+    
     console.log('📊 CALCULATION INPUT DATA:', {
       releasePosition: releasePosition,
-      revolutionsCount: revolutions.length,
-      elapsedTime: revolutions.length > 0 ? revolutions[revolutions.length - 1].elapsedTime + ' seconds' : 'None'
+      revolutionsCount: revolutionsData.length,
+      revolutionsSource: opticalMode ? 'Optical Tracking' : 'Manual Clicking',
+      elapsedTime: revolutionsData.length > 0 ? revolutionsData[revolutionsData.length - 1].elapsedTime + ' seconds' : 'None',
+      ballTrackingConfidence: opticalMode ? ballTrackingStatus.confidence + '%' : 'N/A'
     });
 
     // Check for historical data first
@@ -260,7 +294,7 @@ export default function RoulettePredictorApp() {
     }
 
     // Validate revolution data
-    const validation = validateRevolutionData(revolutions);
+    const validation = validateRevolutionData(revolutionsData);
     if (!validation.valid) {
       console.log('❌ VALIDATION FAILED:', validation.error);
       setPrediction({
@@ -273,13 +307,14 @@ export default function RoulettePredictorApp() {
     }
 
     console.log('✅ DATA VALIDATION PASSED:', {
-      revolutionCount: revolutions.length,
+      revolutionCount: revolutionsData.length,
       dataQuality: validation.dataQualityScore + '%',
-      avgRevolutionTime: validation.avgRevolutionTime?.toFixed(3) + ' seconds'
+      avgRevolutionTime: validation.avgRevolutionTime?.toFixed(3) + ' seconds',
+      trackingMethod: opticalMode ? 'Computer Vision' : 'Manual Timing'
     });
 
     // Calculate ball velocity and deceleration
-    const velocityData = calculateBallVelocity(revolutions);
+    const velocityData = calculateBallVelocity(revolutionsData);
     if (velocityData.error) {
       console.log('❌ VELOCITY CALCULATION FAILED:', velocityData.error);
       setPrediction({
@@ -293,22 +328,24 @@ export default function RoulettePredictorApp() {
     console.log('⚡ VELOCITY DATA:', {
       initialVelocity: velocityData.initialVelocity?.toFixed(3) + ' rev/s',
       finalVelocity: velocityData.finalVelocity?.toFixed(3) + ' rev/s',
-      averageVelocity: velocityData.averageVelocity?.toFixed(3) + ' rev/s'
+      averageVelocity: velocityData.averageVelocity?.toFixed(3) + ' rev/s',
+      dataSource: opticalMode ? 'Optical Ball Tracking' : 'Manual Revolution Timing'
     });
 
     const decelData = calculateDeceleration(velocityData.velocities);
     console.log('📉 DECELERATION DATA:', {
       deceleration: decelData.deceleration?.toFixed(6) + ' rev/s²',
       rSquared: decelData.rSquared?.toFixed(3),
-      fitQuality: decelData.rSquared > 0.8 ? 'Good' : decelData.rSquared > 0.6 ? 'Fair' : 'Poor'
+      fitQuality: decelData.rSquared > 0.8 ? 'Good' : decelData.rSquared > 0.6 ? 'Fair' : 'Poor',
+      enhancedBy: opticalMode ? 'Optical precision timing' : 'Manual timing'
     });
     
     // Predict ball drop
-    const currentTime = revolutions[revolutions.length - 1].elapsedTime;
+    const currentTime = revolutionsData[revolutionsData.length - 1].elapsedTime;
     const dropPrediction = predictBallDrop(
       velocityData, 
       decelData, 
-      settings.dropThreshold, // Using physics setting here
+      settings.dropThreshold,
       currentTime
     );
 
@@ -326,16 +363,18 @@ export default function RoulettePredictorApp() {
       dropTime: dropPrediction.dropTime?.toFixed(2) + ' seconds',
       timeUntilDrop: dropPrediction.timeUntilDrop?.toFixed(2) + ' seconds',
       currentVelocity: dropPrediction.currentVelocity?.toFixed(3) + ' rev/s',
-      dropThresholdUsed: settings.dropThreshold + ' rev/s'
+      dropThresholdUsed: settings.dropThreshold + ' rev/s',
+      predictionEnhancement: opticalMode ? 'Computer vision enhanced' : 'Physics-based only'
     });
 
-    // Calculate final positions
+    // Calculate final positions (using optical calibration data if available)
+    const wheelRadiusToUse = opticalCalibrationData?.wheelRadiusCm || settings.wheelRadius;
     const positions = calculateFinalPositions(
       releasePosition,
-      revolutions,
+      revolutionsData,
       dropPrediction.dropTime,
-      settings.wheelSpeed, // Using physics setting here
-      settings.wheelRadius // Using physics setting here
+      settings.wheelSpeed,
+      wheelRadiusToUse
     );
 
     if (positions.error) {
@@ -355,6 +394,8 @@ export default function RoulettePredictorApp() {
       wheelPosition: positions.wheelPosition?.toFixed(2),
       relativePosition: positions.relativePosition?.toFixed(2),
       totalRevolutions: positions.totalRevolutions?.toFixed(2),
+      wheelRadiusUsed: wheelRadiusToUse + 'cm',
+      calibrationSource: opticalCalibrationData ? 'Optical calibration' : 'Manual settings',
       settingsUsed: positions.settingsUsed || 'Not available'
     });
 
@@ -377,10 +418,21 @@ export default function RoulettePredictorApp() {
       houseEdgeBeaten: expectedValue.houseEdgeBeaten
     });
 
+    // Enhanced confidence calculation for optical mode
+    let enhancedConfidence = dropPrediction.confidence;
+    if (opticalMode && ballTrackingStatus.confidence > 0) {
+      // Boost confidence if optical tracking was reliable
+      const opticalBonus = ballTrackingStatus.confidence * 0.2; // Up to 20% bonus
+      enhancedConfidence = Math.min(95, enhancedConfidence + opticalBonus);
+    }
+
     console.log('📈 FINAL CONFIDENCE SCORES:', {
-      physicsConfidence: Math.round(dropPrediction.confidence) + '%',
+      basePhysicsConfidence: Math.round(dropPrediction.confidence) + '%',
+      opticalTrackingConfidence: opticalMode ? ballTrackingStatus.confidence + '%' : 'N/A',
+      enhancedConfidence: Math.round(enhancedConfidence) + '%',
       dataQuality: validation.dataQualityScore + '%',
-      overallReliability: historicalAnalysis?.hasData ? 'High (with historical data)' : 'Physics-based only'
+      overallReliability: opticalMode ? 'High (optical + physics)' : 
+                        historicalAnalysis?.hasData ? 'High (with historical data)' : 'Physics-based only'
     });
 
     setPrediction({
@@ -396,11 +448,16 @@ export default function RoulettePredictorApp() {
       expectedValue,
       
       // Summary stats
-      confidence: Math.round(dropPrediction.confidence),
+      confidence: Math.round(enhancedConfidence),
       predictedNumber: positions.predictedNumber,
       timeUntilDrop: dropPrediction.timeUntilDrop,
       dataQuality: validation.dataQualityScore,
-      warnings: validation.warnings || []
+      warnings: validation.warnings || [],
+      
+      // Optical enhancement indicators
+      opticalEnhanced: opticalMode,
+      trackingConfidence: opticalMode ? ballTrackingStatus.confidence : null,
+      calibrationQuality: opticalCalibrationData?.qualityAssessment?.quality || null
     });
     
     setGameState('results');
@@ -485,6 +542,54 @@ export default function RoulettePredictorApp() {
     return 'text-red-500';
   };
 
+  const handleOpticalModeToggle = (isActive) => {
+    setOpticalMode(isActive);
+    if (!isActive) {
+      // Reset optical data when turning off
+      setOpticalCalibrationData(null);
+      setOpticalRevolutions([]);
+      setBallTrackingStatus({
+        ballDetected: false,
+        confidence: 0,
+        currentPosition: null
+      });
+    }
+  };
+
+  const handleOpticalCalibration = (calibrationData) => {
+    setOpticalCalibrationData(calibrationData);
+    
+    // Auto-populate physics settings from optical calibration
+    if (calibrationData) {
+      setSettings(prev => ({
+        ...prev,
+        wheelRadius: calibrationData.wheelRadiusCm,
+        // You can add more auto-detected settings here as the system develops
+      }));
+      
+      console.log('🎯 Physics settings updated from optical calibration:', {
+        wheelRadius: calibrationData.wheelRadiusCm + 'cm',
+        qualityScore: calibrationData.qualityAssessment?.quality + '%'
+      });
+    }
+  };
+
+  const handleOpticalRevolution = (revolutionData) => {
+    // Convert optical revolution data to match your existing format
+    const opticalRevolution = {
+      revolution: revolutionData.revolutionNumber,
+      timestamp: Date.now(),
+      elapsedTime: revolutionData.timestamp // This is from optical tracking
+    };
+    
+    setOpticalRevolutions(prev => [...prev, opticalRevolution]);
+    
+    // Also update the main revolutions array for physics calculations
+    setRevolutions(prev => [...prev, opticalRevolution]);
+    
+    console.log(`🤖 Optical revolution ${revolutionData.revolutionNumber} recorded:`, opticalRevolution);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-900 via-green-800 to-emerald-900 p-4">
       <div className="max-w-4xl mx-auto">
@@ -508,6 +613,46 @@ export default function RoulettePredictorApp() {
               <div className={`text-3xl font-bold ${getTimerColor()}`}>
                 {timeRemaining.toFixed(1)}s
               </div>
+            )}
+          </div>
+
+          {/* Optical Mode Toggle */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Tracking Mode</h3>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-white">
+                  <input
+                    type="radio"
+                    name="trackingMode"
+                    checked={!opticalMode}
+                    onChange={() => setOpticalMode(false)}
+                    className="text-green-500"
+                  />
+                  📱 Manual Mode
+                </label>
+                <label className="flex items-center gap-2 text-white">
+                  <input
+                    type="radio"
+                    name="trackingMode"
+                    checked={opticalMode}
+                    onChange={() => setOpticalMode(true)}
+                    className="text-blue-500"
+                  />
+                  🤖 Optical Mode
+                </label>
+              </div>
+            </div>
+
+            {/* Optical Monitor Component */}
+            {opticalMode && (
+              <OpticalMonitor
+                isActive={opticalMode}
+                onToggle={handleOpticalModeToggle}
+                onCalibrationData={handleOpticalCalibration}
+                onRevolutionDetected={handleOpticalRevolution}
+                settings={settings}
+              />
             )}
           </div>
 
@@ -556,57 +701,122 @@ export default function RoulettePredictorApp() {
             </div>
           </div>
 
-          {/* Revolution Tracking */}
+          {/* Revolution Tracking - Show different content based on mode */}
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-white mb-3">Step 2: Track Ball Revolutions</h3>
-            <div className="flex items-center gap-4 mb-4">
-              {gameState === 'idle' ? (
-                <div className="flex flex-col items-center gap-2">
-                  <button
-                    onClick={startTracking}
-                    className="flex items-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-all"
-                  >
-                    <Play className="w-5 h-5" />
-                    Start Tracking
-                  </button>
-                  <div className="text-green-300 text-sm opacity-80">
-                    Or press <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">SPACEBAR</kbd> to start instantly
-                  </div>
-                </div>
-              ) : gameState === 'collecting' ? (
-                <div className="flex flex-col items-center gap-2">
-                  <button
-                    onClick={recordRevolution}
-                    className="flex items-center gap-2 px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium text-xl animate-pulse"
-                  >
-                    CLICK WHEN BALL PASSES {releasePosition ? `#${releasePosition}` : 'RELEASE POINT'}
-                  </button>
-                  <div className="text-green-300 text-sm opacity-80">
-                    Or press <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">SPACEBAR</kbd>
-                  </div>
-                  {!releasePosition && (
-                    <div className="text-yellow-400 text-sm animate-pulse">
-                      ⚠ Don't forget to set release position above!
+            <h3 className="text-lg font-semibold text-white mb-3">
+              Step 2: {opticalMode ? 'Optical Ball Tracking' : 'Track Ball Revolutions'}
+            </h3>
+            
+            {!opticalMode ? (
+              // Original manual tracking interface
+              <div className="flex items-center gap-4 mb-4">
+                {gameState === 'idle' ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <button
+                      onClick={startTracking}
+                      className="flex items-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-all"
+                    >
+                      <Play className="w-5 h-5" />
+                      Start Tracking
+                    </button>
+                    <div className="text-green-300 text-sm opacity-80">
+                      Or press <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">SPACEBAR</kbd> to start instantly
                     </div>
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={reset}
-                  className="flex items-center gap-2 px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium"
-                >
-                  <RotateCcw className="w-5 h-5" />
-                  Reset
-                </button>
-              )}
-            </div>
+                  </div>
+                ) : gameState === 'collecting' ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <button
+                      onClick={recordRevolution}
+                      className="flex items-center gap-2 px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium text-xl animate-pulse"
+                    >
+                      CLICK WHEN BALL PASSES {releasePosition ? `#${releasePosition}` : 'RELEASE POINT'}
+                    </button>
+                    <div className="text-green-300 text-sm opacity-80">
+                      Or press <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">SPACEBAR</kbd>
+                    </div>
+                    {!releasePosition && (
+                      <div className="text-yellow-400 text-sm animate-pulse">
+                        ⚠ Don't forget to set release position above!
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={reset}
+                    className="flex items-center gap-2 px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                    Reset
+                  </button>
+                )}
+              </div>
+            ) : (
+              // Optical tracking status display
+              <div className="space-y-4">
+                {gameState === 'idle' ? (
+                  <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4">
+                    <div className="text-blue-200 font-medium mb-2">🤖 Optical Tracking Ready</div>
+                    <div className="text-blue-100 text-sm mb-4">
+                      Ensure your wheel is calibrated, then start tracking for automatic revolution detection.
+                    </div>
+                    <button
+                      onClick={startTracking}
+                      className="flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-all"
+                    >
+                      <Play className="w-5 h-5" />
+                      Start Optical Tracking
+                    </button>
+                  </div>
+                ) : gameState === 'collecting' ? (
+                  <div className="bg-green-500/20 border border-green-500 rounded-lg p-4">
+                    <div className="text-green-200 font-medium mb-2">🎾 Ball Tracking Active</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="text-green-300">Ball Detected:</span>
+                        <div className={`font-bold ${ballTrackingStatus.ballDetected ? 'text-green-400' : 'text-yellow-400'}`}>
+                          {ballTrackingStatus.ballDetected ? '✅ Yes' : '⏳ Searching...'}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-green-300">Confidence:</span>
+                        <div className="text-green-400 font-bold">{ballTrackingStatus.confidence}%</div>
+                      </div>
+                      <div>
+                        <span className="text-green-300">Revolutions:</span>
+                        <div className="text-green-400 font-bold">{opticalRevolutions.length}</div>
+                      </div>
+                      <div>
+                        <span className="text-green-300">Time Remaining:</span>
+                        <div className={`font-bold ${getTimerColor()}`}>{timeRemaining.toFixed(1)}s</div>
+                      </div>
+                    </div>
+                    {opticalRevolutions.length > 0 && (
+                      <div className="mt-3 text-green-100 text-sm">
+                        🤖 Automatically detected {opticalRevolutions.length} revolutions - no manual clicking needed!
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={reset}
+                    className="flex items-center gap-2 px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                    Reset
+                  </button>
+                )}
+              </div>
+            )}
 
-            {/* Revolution Data */}
-            {revolutions.length > 0 && (
-              <div className="bg-gray-800/50 rounded-lg p-4">
-                <h4 className="text-white font-medium mb-2">Recorded Revolutions: {revolutions.length}</h4>
+            {/* Revolution Data Display */}
+            {(revolutions.length > 0 || opticalRevolutions.length > 0) && (
+              <div className="bg-gray-800/50 rounded-lg p-4 mt-4">
+                <h4 className="text-white font-medium mb-2">
+                  Recorded Revolutions: {opticalMode ? opticalRevolutions.length : revolutions.length}
+                  {opticalMode && <span className="text-blue-400 text-sm ml-2">(Optical Detection)</span>}
+                </h4>
                 <div className="grid grid-cols-4 gap-2 text-sm">
-                  {revolutions.map((rev, idx) => (
+                  {(opticalMode ? opticalRevolutions : revolutions).map((rev, idx) => (
                     <div key={idx} className="text-green-300">
                       #{rev.revolution}: {rev.elapsedTime.toFixed(2)}s
                     </div>
@@ -616,6 +826,24 @@ export default function RoulettePredictorApp() {
             )}
           </div>
 
+          {/* Show optical status when in optical mode */}
+          {opticalMode && gameState === 'collecting' && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-white mb-3">Step 2: Optical Ball Tracking</h3>
+              <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4">
+                <div className="text-blue-200 font-medium mb-2">🤖 Automated Tracking Active</div>
+                <div className="text-blue-100 text-sm">
+                  The system is automatically detecting ball revolutions. No manual clicking needed!
+                </div>
+                {revolutions.length > 0 && (
+                  <div className="mt-3 text-blue-100 text-sm">
+                    Detected {revolutions.length} revolutions automatically
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           {/* Prediction Results */}
           {prediction && gameState === 'results' && (
             <div className="mb-6">

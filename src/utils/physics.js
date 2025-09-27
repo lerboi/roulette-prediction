@@ -121,13 +121,14 @@ export function predictBallDrop(velocityData, decelData, dropThreshold, currentT
  * @param {Array} revolutions - Revolution data
  * @param {number} dropTime - Predicted drop time
  * @param {number} wheelSpeed - Wheel rotation speed (RPM) - USER SETTING
- * @param {number} wheelRadius - Wheel radius (cm) - USER SETTING (optional)
+ * @param {number} wheelRadius - Wheel radius (cm) - USER SETTING (Cammegh Mercury 360: 40cm)
  * @returns {Object} Position predictions
  */
-export function calculateFinalPositions(releasePosition, revolutions, dropTime, wheelSpeed, wheelRadius = 27) {
-  console.log(`🎰 calculateFinalPositions called with USER SETTINGS:`, {
+export function calculateFinalPositions(releasePosition, revolutions, dropTime, wheelSpeed, wheelRadius = 40) {
+  console.log(`🎰 calculateFinalPositions called with CAMMEGH MERCURY 360 SETTINGS:`, {
     wheelSpeed: wheelSpeed + ' RPM',
-    wheelRadius: wheelRadius + ' cm',
+    wheelRadius: wheelRadius + ' cm (Cammegh Mercury 360 standard: 40cm)',
+    wheelCircumference: (2 * Math.PI * wheelRadius).toFixed(1) + ' cm',
     dropTime: dropTime?.toFixed(3) + ' seconds'
   });
 
@@ -136,7 +137,7 @@ export function calculateFinalPositions(releasePosition, revolutions, dropTime, 
     return { error: 'Invalid release position' };
   }
 
-  // European roulette wheel layout (0-36)
+  // European roulette wheel layout (0-36) - Cammegh Mercury 360 uses standard layout
   const wheelNumbers = [
     0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5,
     24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
@@ -147,6 +148,17 @@ export function calculateFinalPositions(releasePosition, revolutions, dropTime, 
   if (releaseIndex === -1) {
     return { error: 'Release position not found on wheel' };
   }
+
+  // Calculate ball track radius (ball runs slightly inside the wheel rim)
+  const ballTrackRadius = wheelRadius * 0.9375; // ~37.5cm for 40cm wheel radius
+  const ballTrackCircumference = 2 * Math.PI * ballTrackRadius;
+
+  console.log(`📏 Cammegh Mercury 360 Measurements:`, {
+    wheelRadius: wheelRadius + ' cm',
+    ballTrackRadius: ballTrackRadius.toFixed(1) + ' cm', 
+    ballTrackCircumference: ballTrackCircumference.toFixed(1) + ' cm',
+    pocketSpacing: (ballTrackCircumference / 37).toFixed(1) + ' cm per pocket'
+  });
 
   // Calculate total ball revolutions at drop time
   const lastRevolutionTime = revolutions.length > 0 ? revolutions[revolutions.length - 1]?.elapsedTime || 0 : 0;
@@ -162,7 +174,7 @@ export function calculateFinalPositions(releasePosition, revolutions, dropTime, 
     totalRevolutions: totalRevolutions.toFixed(3)
   });
 
-  // Calculate ball position (in wheel sectors) - using wheel circumference if needed
+  // Calculate ball position (in wheel sectors)
   const ballSectorsFromStart = totalRevolutions * 37; // 37 sectors per revolution
   const ballFinalIndex = (releaseIndex + ballSectorsFromStart) % 37;
 
@@ -199,7 +211,9 @@ export function calculateFinalPositions(releasePosition, revolutions, dropTime, 
     // Include settings used for verification
     settingsUsed: {
       wheelSpeed: wheelSpeed + ' RPM',
-      wheelRadius: wheelRadius + ' cm'
+      wheelRadius: wheelRadius + ' cm',
+      ballTrackRadius: ballTrackRadius.toFixed(1) + ' cm',
+      ballTrackCircumference: ballTrackCircumference.toFixed(1) + ' cm'
     }
   };
 }

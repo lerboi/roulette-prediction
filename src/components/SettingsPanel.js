@@ -52,10 +52,10 @@ export default function SettingsPanel({ settings, onSettingsChange }) {
                 </label>
                 <input
                   type="number"
-                  value={tempSettings.wheelSpeed}
+                  value={tempSettings.wheelSpeed || 30}
                   onChange={(e) => setTempSettings(prev => ({
                     ...prev,
-                    wheelSpeed: parseFloat(e.target.value)
+                    wheelSpeed: parseFloat(e.target.value) || 30
                   }))}
                   className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-green-500 focus:outline-none"
                   min="10"
@@ -74,10 +74,10 @@ export default function SettingsPanel({ settings, onSettingsChange }) {
                 </label>
                 <input
                   type="number"
-                  value={tempSettings.totalTime}
+                  value={tempSettings.totalTime || 3}
                   onChange={(e) => setTempSettings(prev => ({
                     ...prev,
-                    totalTime: parseFloat(e.target.value)
+                    totalTime: parseFloat(e.target.value) || 3
                   }))}
                   className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-green-500 focus:outline-none"
                   min="3"
@@ -96,18 +96,18 @@ export default function SettingsPanel({ settings, onSettingsChange }) {
                 </label>
                 <input
                   type="number"
-                  value={tempSettings.wheelRadius}
+                  value={tempSettings.wheelRadius || 40} // Fallback to 40 if undefined/NaN
                   onChange={(e) => setTempSettings(prev => ({
                     ...prev,
-                    wheelRadius: parseFloat(e.target.value)
+                    wheelRadius: parseFloat(e.target.value) || 40 // Fallback to 40 if NaN
                   }))}
                   className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-green-500 focus:outline-none"
-                  min="20"
-                  max="40"
+                  min="35"
+                  max="45"
                   step="0.5"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Standard roulette wheels: ~27cm radius.
+                  Cammegh Mercury 360: 40cm radius. Standard casino wheels: 37-42cm.
                 </p>
               </div>
 
@@ -121,7 +121,7 @@ export default function SettingsPanel({ settings, onSettingsChange }) {
                   value={tempSettings.dropThreshold || 0.5}
                   onChange={(e) => setTempSettings(prev => ({
                     ...prev,
-                    dropThreshold: parseFloat(e.target.value)
+                    dropThreshold: parseFloat(e.target.value) || 0.5
                   }))}
                   className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-green-500 focus:outline-none"
                   min="0.1"
