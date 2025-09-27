@@ -1,0 +1,124 @@
+# Complete System Overview: Hybrid Roulette Prediction Webapp
+
+## What You're Achieving:
+You're building a webapp that uses physics-based prediction to gain a statistical advantage over the house by predicting which sector of the roulette wheel the ball will land in, similar to Doyne Farmer's pioneering work but adapted for online casinos with constant wheel speeds.
+
+## Pre-Spin Setup & Constants:
+
+### One-Time Measurements (to be determined/calibrated):
+- **Wheel rotation speed** (RPM) - since it's constant, measure once
+- **Wheel circumference/radius** - for distance calculations
+- **Ball deceleration coefficients** - air resistance and friction factors
+- **Drop zone physics** - when/where ball typically drops from rim
+- **Betting interface timing** - how long it takes you to place bets
+
+### Visual Setup:
+- Clear view of wheel numbers and ball trajectory
+- Identify visual markers for consistent reference points
+- Test lighting/video quality for accurate tracking
+
+## During Each Spin - Data Collection Phase:
+
+### Step 1: Ball Release (Voice Input)
+**What to Track:**
+- **Release position** - exact number/color where ball starts ("Red 32", "Black 15")
+- **Release timestamp** - when dealer lets go
+- **Initial visual assessment** - ball speed/vigor of throw
+
+**Voice Input Format:** 
+- Clear, consistent format: "Red 7" or "Black 23"
+- Immediate capture without timing pressure
+
+### Step 2: Revolution Timing (Manual Clicks)
+**What to Track:**
+- **Revolution timestamps** - precise time when ball passes release point again
+- **Number of complete revolutions** - typically 8-15 before drop
+- **Consistency check** - verify ball is passing same reference point
+
+**Clicking Protocol:**
+- Click exactly when ball crosses the release position number
+- Maintain consistent visual reference (center of number, edge, etc.)
+- Continue until ball drops into lower wheel area
+
+### Step 3: Environmental Factors (Automatic/Manual)
+**Additional Data Points:**
+- **Wheel position** at ball release (where is "0" relative to your viewpoint?)
+- **Dealer consistency** - same release technique/speed
+- **Ball condition** - any visible wear/irregularities
+
+## Critical Calculations Required:
+
+### Real-Time Physics Engine:
+
+**1. Ball Velocity Calculation:**
+```
+Initial velocity = Distance per revolution / Time per revolution
+Velocity(t) = Initial velocity - (deceleration × time)
+```
+
+**2. Deceleration Analysis:**
+```
+Deceleration rate = (V1 - V2) / (T2 - T1)
+Where V1, V2 are velocities at times T1, T2
+```
+
+**3. Drop Point Prediction:**
+```
+Time to drop = When velocity reaches critical threshold
+Ball position at drop = Release position + (revolutions × 360°)
+Wheel position at drop = Initial position + (wheel speed × elapsed time)
+Final relative position = Ball position - Wheel position
+```
+
+**4. Sector Prediction:**
+- Convert final position to wheel sectors (1-8 octants or custom groupings)
+- Account for bounce patterns after drop
+- Generate probability distribution for nearby pockets
+
+### Timing Constraints (6-Second Window):
+
+**Time Allocation:**
+- **Seconds 0-1:** Ball release, voice input, initial revolution
+- **Seconds 1-4:** Revolution timing, data collection (3-6 revolutions)
+- **Seconds 4-5:** Real-time calculation, prediction generation
+- **Seconds 5-6:** Display results, place bets
+
+**Critical Timing Calculations:**
+- **Prediction deadline:** Must complete calculations by second 4-5
+- **Betting buffer:** Account for interface lag and decision time
+- **Minimum data requirement:** At least 3 clean revolutions for reliable prediction
+
+## Webapp Architecture Requirements:
+
+### Input Systems:
+- **Voice recognition** for release position capture
+- **Click/tap interface** for revolution timing
+- **Visual feedback** for timing confirmation
+- **Manual override** for corrections
+
+### Calculation Engine:
+- **Real-time physics processor** running during data collection
+- **Deceleration curve fitting** algorithm
+- **Probability distribution calculator** for betting recommendations
+- **Confidence scoring** system for prediction reliability
+
+### Output System:
+- **Sector recommendations** (which areas to bet on)
+- **Confidence indicators** (how reliable is this prediction)
+- **Betting amounts** based on edge calculation
+- **Time remaining** countdown for bet placement
+
+## Success Metrics:
+- **Prediction accuracy:** 60%+ correct sector predictions (vs 12.5% random)
+- **House edge reversal:** Achieve positive expected value
+- **Consistency:** Reliable performance across multiple spins
+- **Speed:** Complete analysis within 4-second constraint
+
+## Key Success Factors:
+1. **Timing consistency** - most critical element
+2. **Visual tracking accuracy** - precise reference point identification
+3. **Rapid calculation** - physics engine performance
+4. **Betting speed** - quick decision making and placement
+5. **Environmental consistency** - same dealer, wheel, conditions
+
+This system essentially digitizes and improves upon Farmer's analog approach, using the constant wheel speed advantage while maintaining the proven timing-based methodology that generated their 20% edge over the house.
